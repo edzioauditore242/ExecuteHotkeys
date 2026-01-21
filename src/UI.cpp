@@ -7,7 +7,6 @@
 // ============================================
 namespace Configuration {
     std::string GetConfigPath() { return "Data\\SKSE\\Plugins\\ExecuteHotkeys.ini"; }
-
     void LoadConfiguration() {
         Hotkeys.clear();
         std::string configPath = GetConfigPath();
@@ -37,7 +36,6 @@ namespace Configuration {
         file.close();
         logger::info("Loaded {} hotkeys from configuration", Hotkeys.size());
     }
-
     void SaveConfiguration() {
         std::string configPath = GetConfigPath();
         std::ofstream file(configPath);
@@ -45,11 +43,10 @@ namespace Configuration {
             logger::error("Failed to save configuration to {}", configPath);
             return;
         }
-        file << "; Execute Hotkeys Configuration\n";
+        file << "; Execute Hotkeys Config\n";
         file << "; Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift\n";
-        file << "; DxCode is the DirectX scan code in decimal (see CK wiki for list)\n";
-        file << "; Common codes: F1=59, F2=60, ..., F12=88, F13=100, ..., F24=111\n";
-        file << "; Insert=210, Delete=211, Home=199, End=207, PageUp=201, PageDown=209\n\n";
+        file << "; DxCode is the DirectX scan code in decimal (ck.uesp.net/wiki/Input_Script)\n";
+        file << "; Do not use invalid DXScanCodes!!\n\n";
         for (const auto& hotkey : Hotkeys) {
             file << hotkey.name << "|" << hotkey.dxCode << "|" << (hotkey.useLCtrl ? "1" : "0") << "|" << (hotkey.useLAlt ? "1" : "0") << "|" << (hotkey.useLShift ? "1" : "0") << "|" << (hotkey.useRCtrl ? "1" : "0") << "|"
                  << (hotkey.useRAlt ? "1" : "0") << "|" << (hotkey.useRShift ? "1" : "0") << "\n";
@@ -57,22 +54,20 @@ namespace Configuration {
         file.close();
         logger::info("Saved {} hotkeys to configuration", Hotkeys.size());
     }
-
     void AddHotkey(const Hotkey& hotkey) {
         Hotkeys.push_back(hotkey);
         SaveConfiguration();
     }
-
     void RemoveHotkey(size_t index) {
         if (index < Hotkeys.size()) {
             Hotkeys.erase(Hotkeys.begin() + index);
             SaveConfiguration();
         }
     }
-
     std::string GetKeyName(uint32_t dxCode) {
         switch (dxCode) {
-            // Numbers and symbols
+            case 1:
+                return "Esc";
             case 2:
                 return "1";
             case 3:
@@ -97,7 +92,10 @@ namespace Configuration {
                 return "-";
             case 13:
                 return "=";
-            // Q row
+            case 14:
+                return "Backspace";
+            case 15:
+                return "Tab";
             case 16:
                 return "Q";
             case 17:
@@ -122,7 +120,10 @@ namespace Configuration {
                 return "[";
             case 27:
                 return "]";
-            // A row
+            case 28:
+                return "Enter";
+            case 29:
+                return "LCtrl";
             case 30:
                 return "A";
             case 31:
@@ -146,8 +147,11 @@ namespace Configuration {
             case 40:
                 return "'";
             case 41:
-                return "`";
-            // Z row
+                return "~";
+            case 42:
+                return "LShift";
+            case 43:
+                return "\\";
             case 44:
                 return "Z";
             case 45:
@@ -168,7 +172,16 @@ namespace Configuration {
                 return ".";
             case 53:
                 return "/";
-            // Other keys
+            case 54:
+                return "RShift";
+            case 55:
+                return "NUM*";
+            case 56:
+                return "LAlt";
+            case 57:
+                return "Space";
+            case 58:
+                return "CapsLock";
             case 59:
                 return "F1";
             case 60:
@@ -189,6 +202,36 @@ namespace Configuration {
                 return "F9";
             case 68:
                 return "F10";
+            case 69:
+                return "NumLock";
+            case 70:
+                return "ScrollLock";
+            case 71:
+                return "NUM7";
+            case 72:
+                return "NUM8";
+            case 73:
+                return "NUM9";
+            case 74:
+                return "NUM-";
+            case 75:
+                return "NUM4";
+            case 76:
+                return "NUM5";
+            case 77:
+                return "NUM6";
+            case 78:
+                return "NUM+";
+            case 79:
+                return "NUM1";
+            case 80:
+                return "NUM2";
+            case 81:
+                return "NUM3";
+            case 82:
+                return "NUM0";
+            case 83:
+                return "NUM.";
             case 87:
                 return "F11";
             case 88:
@@ -217,96 +260,140 @@ namespace Configuration {
                 return "F23";
             case 111:
                 return "F24";
+            case 156:
+                return "NUMEnter";
+            case 157:
+                return "RCtrl";
+            case 181:
+                return "NUM/";
             case 183:
-                return "PrintScreen";
-            case 210:
-                return "Insert";
-            case 211:
-                return "Delete";
+                return "PtrScr";
+            case 184:
+                return "RAlt";
+            case 197:
+                return "Pause";
             case 199:
                 return "Home";
-            case 207:
-                return "End";
-            case 201:
-                return "PageUp";
-            case 209:
-                return "PageDown";
             case 200:
                 return "Up";
-            case 208:
-                return "Down";
+            case 201:
+                return "PgUp";
             case 203:
                 return "Left";
             case 205:
                 return "Right";
-            case 82:
-                return "Numpad0";
-            case 79:
-                return "Numpad1";
-            case 80:
-                return "Numpad2";
-            case 81:
-                return "Numpad3";
-            case 75:
-                return "Numpad4";
-            case 76:
-                return "Numpad5";
-            case 77:
-                return "Numpad6";
-            case 71:
-                return "Numpad7";
-            case 72:
-                return "Numpad8";
-            case 73:
-                return "Numpad9";
-            case 83:
-                return "Numpad.";
-            case 78:
-                return "Numpad+";
-            case 74:
-                return "Numpad-";
-            case 55:
-                return "Numpad*";
-            case 181:
-                return "Numpad/";
-            case 28:
-                return "Enter";
-            case 15:
-                return "Tab";
-            case 14:
-                return "Backspace";
-            case 57:
-                return "Space";
-            case 1:
-                return "Esc";
-            case 70:
-                return "ScrollLock";
-            case 69:
-                return "NumLock";
-            case 43:
-                return "\\";
+            case 207:
+                return "End";
+            case 208:
+                return "Down";
+            case 209:
+                return "PgDown";
+            case 210:
+                return "Insert";
+            case 211:
+                return "Delete";
+            case 256:
+                return "LMB";
+            case 257:
+                return "RMB";
+            case 258:
+                return "MMB";
+            case 259:
+                return "MB3";
+            case 260:
+                return "MB4";
+            case 261:
+                return "MB5";
+            case 262:
+                return "MB6";
+            case 263:
+                return "MB7";
+            case 264:
+                return "MWUp";
+            case 265:
+                return "MWDown";
             default:
                 return "Key" + std::to_string(dxCode);
         }
     }
 }
-
 // ============================================
 // Key Executor Implementation
 // ============================================
 namespace KeyExecutor {
     void SendKey(uint32_t dxCode, bool down) {
         INPUT input = {0};
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = 0;
-        input.ki.wScan = static_cast<WORD>(dxCode & 0x7F);
-        input.ki.dwFlags = KEYEVENTF_SCANCODE | (down ? 0 : KEYEVENTF_KEYUP);
-        if (dxCode & 0x80) {
-            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        if (dxCode < 256) {
+            // Keyboard
+            input.type = INPUT_KEYBOARD;
+            input.ki.wVk = 0;
+            input.ki.wScan = static_cast<WORD>(dxCode);
+            input.ki.dwFlags = KEYEVENTF_SCANCODE | (down ? 0 : KEYEVENTF_KEYUP);
+            if (dxCode >= 0xE0) {
+                input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            }
+        } else if (dxCode >= 256 && dxCode <= 265) {
+            // Mouse
+            input.type = INPUT_MOUSE;
+            if (dxCode <= 263) {
+                uint32_t buttonFlagDown, buttonFlagUp;
+                DWORD mouseData = 0;
+                switch (dxCode) {
+                    case 256:
+                        buttonFlagDown = MOUSEEVENTF_LEFTDOWN;
+                        buttonFlagUp = MOUSEEVENTF_LEFTUP;
+                        break;
+                    case 257:
+                        buttonFlagDown = MOUSEEVENTF_RIGHTDOWN;
+                        buttonFlagUp = MOUSEEVENTF_RIGHTUP;
+                        break;
+                    case 258:
+                        buttonFlagDown = MOUSEEVENTF_MIDDLEDOWN;
+                        buttonFlagUp = MOUSEEVENTF_MIDDLEUP;
+                        break;
+                    case 259:
+                        buttonFlagDown = MOUSEEVENTF_XDOWN;
+                        buttonFlagUp = MOUSEEVENTF_XUP;
+                        mouseData = XBUTTON1;
+                        break;
+                    case 260:
+                        buttonFlagDown = MOUSEEVENTF_XDOWN;
+                        buttonFlagUp = MOUSEEVENTF_XUP;
+                        mouseData = XBUTTON2;
+                        break;
+                    case 261:
+                        buttonFlagDown = MOUSEEVENTF_XDOWN;
+                        buttonFlagUp = MOUSEEVENTF_XUP;
+                        mouseData = XBUTTON1;
+                        break;  // Assuming MB5 as XBUTTON1 repeat
+                    case 262:
+                        buttonFlagDown = MOUSEEVENTF_XDOWN;
+                        buttonFlagUp = MOUSEEVENTF_XUP;
+                        mouseData = XBUTTON2;
+                        break;  // MB6 as XBUTTON2
+                    case 263:
+                        buttonFlagDown = MOUSEEVENTF_XDOWN;
+                        buttonFlagUp = MOUSEEVENTF_XUP;
+                        mouseData = XBUTTON1;
+                        break;  // MB7 as XBUTTON1
+                    default:
+                        return;
+                }
+                input.mi.dwFlags = down ? buttonFlagDown : buttonFlagUp;
+                input.mi.mouseData = mouseData;
+            } else {
+                // Wheel
+                if (!down) return;  // No "up" for wheel
+                input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+                input.mi.mouseData = (dxCode == 264) ? WHEEL_DELTA : -WHEEL_DELTA;
+            }
+        } else {
+            // Unsupported (e.g., gamepad)
+            logger::warn("Unsupported dxCode: {}", dxCode);
+            return;
         }
         SendInput(1, &input, sizeof(INPUT));
     }
-
     void ExecuteKey(uint32_t dxCode, bool useLCtrl, bool useLAlt, bool useLShift, bool useRCtrl, bool useRAlt, bool useRShift) {
         logger::info("Executing hotkey with dxCode: {}", dxCode);
         std::vector<uint32_t> mods;
@@ -316,7 +403,6 @@ namespace KeyExecutor {
         if (useRCtrl) mods.push_back(157);
         if (useRAlt) mods.push_back(184);
         if (useRShift) mods.push_back(54);
-
         for (auto mod : mods) {
             SendKey(mod, true);
             std::this_thread::sleep_for(10ms);
@@ -331,7 +417,6 @@ namespace KeyExecutor {
         }
     }
 }
-
 // ============================================
 // UI Implementation
 // ============================================
@@ -345,7 +430,6 @@ void UI::Register() {
     HotkeyManager::AddHotkeyWindow = SKSEMenuFramework::AddWindow(HotkeyManager::RenderAddHotkeyWindow, true);
     logger::info("UI registered successfully");
 }
-
 namespace UI::HotkeyManager {
     // State for adding new hotkey
     static char newHotkeyName[256] = "";
@@ -356,118 +440,22 @@ namespace UI::HotkeyManager {
     static bool useRCtrl = false;
     static bool useRAlt = false;
     static bool useRShift = false;
-
     // Common keys for dropdown
     struct KeyOption {
         const char* name;
         uint32_t dxCode;
     };
-    static KeyOption keyOptions[] = {{"Esc", 1},
-                                     {"1", 2},
-                                     {"2", 3},
-                                     {"3", 4},
-                                     {"4", 5},
-                                     {"5", 6},
-                                     {"6", 7},
-                                     {"7", 8},
-                                     {"8", 9},
-                                     {"9", 10},
-                                     {"0", 11},
-                                     {"-", 12},
-                                     {"=", 13},
-                                     {"Backspace", 14},
-                                     {"Tab", 15},
-                                     {"Q", 16},
-                                     {"W", 17},
-                                     {"E", 18},
-                                     {"R", 19},
-                                     {"T", 20},
-                                     {"Y", 21},
-                                     {"U", 22},
-                                     {"I", 23},
-                                     {"O", 24},
-                                     {"P", 25},
-                                     {"[", 26},
-                                     {"]", 27},
-                                     {"Enter", 28},
-                                     {"A", 30},
-                                     {"S", 31},
-                                     {"D", 32},
-                                     {"F", 33},
-                                     {"G", 34},
-                                     {"H", 35},
-                                     {"J", 36},
-                                     {"K", 37},
-                                     {"L", 38},
-                                     {";", 39},
-                                     {"'", 40},
-                                     {"`", 41},
-                                     {"Z", 44},
-                                     {"X", 45},
-                                     {"C", 46},
-                                     {"V", 47},
-                                     {"B", 48},
-                                     {"N", 49},
-                                     {"M", 50},
-                                     {",", 51},
-                                     {".", 52},
-                                     {"/", 53},
-                                     {"Space", 57},
-                                     {"F1", 59},
-                                     {"F2", 60},
-                                     {"F3", 61},
-                                     {"F4", 62},
-                                     {"F5", 63},
-                                     {"F6", 64},
-                                     {"F7", 65},
-                                     {"F8", 66},
-                                     {"F9", 67},
-                                     {"F10", 68},
-                                     {"NumLock", 69},
-                                     {"ScrollLock", 70},
-                                     {"Numpad7", 71},
-                                     {"Numpad8", 72},
-                                     {"Numpad9", 73},
-                                     {"Numpad-", 74},
-                                     {"Numpad4", 75},
-                                     {"Numpad5", 76},
-                                     {"Numpad6", 77},
-                                     {"Numpad+", 78},
-                                     {"Numpad1", 79},
-                                     {"Numpad2", 80},
-                                     {"Numpad3", 81},
-                                     {"Numpad0", 82},
-                                     {"Numpad.", 83},
-                                     {"F11", 87},
-                                     {"F12", 88},
-                                     {"F13", 100},
-                                     {"F14", 101},
-                                     {"F15", 102},
-                                     {"F16", 103},
-                                     {"F17", 104},
-                                     {"F18", 105},
-                                     {"F19", 106},
-                                     {"F20", 107},
-                                     {"F21", 108},
-                                     {"F22", 109},
-                                     {"F23", 110},
-                                     {"F24", 111},
-                                     {"NumpadEnter", 156},
-                                     {"Numpad/", 181},
-                                     {"PrintScreen", 183},
-                                     {"Insert", 210},
-                                     {"Delete", 211},
-                                     {"Home", 199},
-                                     {"End", 207},
-                                     {"PageUp", 201},
-                                     {"PageDown", 209},
-                                     {"Up", 200},
-                                     {"Down", 208},
-                                     {"Left", 203},
-                                     {"Right", 205},
-                                     {"Numpad*", 55}};
+    static KeyOption keyOptions[] = {
+        {"Esc", 1},       {"1", 2},         {"2", 3},        {"3", 4},      {"4", 5},       {"5", 6},      {"6", 7},     {"7", 8},      {"8", 9},      {"9", 10},      {"0", 11},      {"-", 12},      {"=", 13},           {"Backspace", 14},
+        {"Tab", 15},      {"Q", 16},        {"W", 17},       {"E", 18},     {"R", 19},      {"T", 20},     {"Y", 21},    {"U", 22},     {"I", 23},     {"O", 24},      {"P", 25},      {"[", 26},      {"]", 27},           {"Enter", 28},
+        {"LCtrl", 29},    {"A", 30},        {"S", 31},       {"D", 32},     {"F", 33},      {"G", 34},     {"H", 35},    {"J", 36},     {"K", 37},     {"L", 38},      {";", 39},      {"'", 40},      {"~ (Console)", 41}, {"LShift", 42},
+        {"\\", 43},       {"Z", 44},        {"X", 45},       {"C", 46},     {"V", 47},      {"B", 48},     {"N", 49},    {"M", 50},     {",", 51},     {".", 52},      {"/", 53},      {"RShift", 54}, {"NUM*", 55},        {"LAlt", 56},
+        {"Spacebar", 57}, {"CapsLock", 58}, {"F1", 59},      {"F2", 60},    {"F3", 61},     {"F4", 62},    {"F5", 63},   {"F6", 64},    {"F7", 65},    {"F8", 66},     {"F9", 67},     {"F10", 68},    {"NumLock", 69},     {"ScrollLock", 70},
+        {"NUM7", 71},     {"NUM8", 72},     {"NUM9", 73},    {"NUM-", 74},  {"NUM4", 75},   {"NUM5", 76},  {"NUM6", 77}, {"NUM+", 78},  {"NUM1", 79},  {"NUM2", 80},   {"NUM3", 81},   {"NUM0", 82},   {"NUM.", 83},        {"F11", 87},
+        {"F12", 88},      {"F13", 100},     {"F14", 101},    {"F15", 102},  {"F16", 103},   {"F17", 104},  {"F18", 105}, {"F19", 106},  {"F20", 107},  {"F21", 108},   {"F22", 109},   {"F23", 110},   {"F24", 111},        {"NUMEnter", 156},
+        {"RCtrl", 157},   {"NUM/", 181},    {"PtrScr", 183}, {"RAlt", 184}, {"Pause", 197}, {"Home", 199}, {"Up", 200},  {"PgUp", 201}, {"Left", 203}, {"Right", 205}, {"End", 207},   {"Down", 208},  {"PgDown", 209},     {"Insert", 210},
+        {"Delete", 211},  {"LMB", 256},     {"RMB", 257},    {"MMB", 258},  {"MB3", 259},   {"MB4", 260},  {"MB5", 261}, {"MB6", 262},  {"MB7", 263},  {"MWUp", 264},  {"MWDown", 265}};
     static const int keyOptionsCount = sizeof(keyOptions) / sizeof(KeyOption);
-
     void __stdcall Render() {
         ImGuiMCP::Text("Configured Hotkeys:");
         ImGuiMCP::SameLine();
@@ -544,7 +532,6 @@ namespace UI::HotkeyManager {
             }
         }
     }
-
     void __stdcall RenderAddHotkeyWindow() {
         auto viewport = ImGuiMCP::GetMainViewport();
         auto center = ImGuiMCP::ImVec2Manager::Create();
