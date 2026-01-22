@@ -2,6 +2,9 @@
 
 #include <Windows.h>
 
+#include <algorithm>
+#include <cctype>
+
 // ============================================
 // Configuration Implementation
 // ============================================
@@ -16,12 +19,13 @@ namespace Configuration {
             return;
         }
         std::string line;
+        bool needsUpgrade = false;
         while (std::getline(file, line)) {
             if (line.empty() || line[0] == ';' || line[0] == '#') continue;
             std::istringstream iss(line);
             std::string token;
             Hotkey hotkey;
-            // Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift
+            // Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift|IsPress|HoldMs
             if (std::getline(iss, hotkey.name, '|') && std::getline(iss, token, '|')) {
                 hotkey.dxCode = std::stoul(token);
                 if (std::getline(iss, token, '|')) hotkey.useLCtrl = (token == "1");
@@ -30,10 +34,24 @@ namespace Configuration {
                 if (std::getline(iss, token, '|')) hotkey.useRCtrl = (token == "1");
                 if (std::getline(iss, token, '|')) hotkey.useRAlt = (token == "1");
                 if (std::getline(iss, token, '|')) hotkey.useRShift = (token == "1");
+                std::string isPressToken;
+                if (std::getline(iss, isPressToken, '|')) {
+                    hotkey.isPress = (isPressToken == "1");
+                    if (std::getline(iss, token, '|')) hotkey.holdMs = std::stoul(token);
+                } else {
+                    // Old format detected: default to press
+                    hotkey.isPress = true;
+                    hotkey.holdMs = 1000;
+                    needsUpgrade = true;
+                }
                 Hotkeys.push_back(hotkey);
             }
         }
         file.close();
+        if (needsUpgrade) {
+            SaveConfiguration();  // Upgrade and save with new fields
+            logger::info("Upgraded old configuration file");
+        }
         logger::info("Loaded {} hotkeys from configuration", Hotkeys.size());
     }
     void SaveConfiguration() {
@@ -44,12 +62,12 @@ namespace Configuration {
             return;
         }
         file << "; Execute Hotkeys Config\n";
-        file << "; Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift\n";
+        file << "; Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift|IsPress(1=Press/0=Hold)|HoldMs\n";
         file << "; DxCode is the DirectX scan code in decimal (ck.uesp.net/wiki/Input_Script)\n";
         file << "; Do not use invalid DXScanCodes!!\n\n";
         for (const auto& hotkey : Hotkeys) {
             file << hotkey.name << "|" << hotkey.dxCode << "|" << (hotkey.useLCtrl ? "1" : "0") << "|" << (hotkey.useLAlt ? "1" : "0") << "|" << (hotkey.useLShift ? "1" : "0") << "|" << (hotkey.useRCtrl ? "1" : "0") << "|"
-                 << (hotkey.useRAlt ? "1" : "0") << "|" << (hotkey.useRShift ? "1" : "0") << "\n";
+                 << (hotkey.useRAlt ? "1" : "0") << "|" << (hotkey.useRShift ? "1" : "0") << "|" << (hotkey.isPress ? "1" : "0") << "|" << hotkey.holdMs << "\n";
         }
         file.close();
         logger::info("Saved {} hotkeys to configuration", Hotkeys.size());
@@ -394,22 +412,26 @@ namespace KeyExecutor {
         }
         SendInput(1, &input, sizeof(INPUT));
     }
-    void ExecuteKey(uint32_t dxCode, bool useLCtrl, bool useLAlt, bool useLShift, bool useRCtrl, bool useRAlt, bool useRShift) {
-        logger::info("Executing hotkey with dxCode: {}", dxCode);
+    void ExecuteKey(const Configuration::Hotkey& hotkey) {
+        logger::info("Executing hotkey: {}", hotkey.name);
         std::vector<uint32_t> mods;
-        if (useLCtrl) mods.push_back(29);
-        if (useLAlt) mods.push_back(56);
-        if (useLShift) mods.push_back(42);
-        if (useRCtrl) mods.push_back(157);
-        if (useRAlt) mods.push_back(184);
-        if (useRShift) mods.push_back(54);
+        if (hotkey.useLCtrl) mods.push_back(29);
+        if (hotkey.useLAlt) mods.push_back(56);
+        if (hotkey.useLShift) mods.push_back(42);
+        if (hotkey.useRCtrl) mods.push_back(157);
+        if (hotkey.useRAlt) mods.push_back(184);
+        if (hotkey.useRShift) mods.push_back(54);
         for (auto mod : mods) {
             SendKey(mod, true);
             std::this_thread::sleep_for(10ms);
         }
-        SendKey(dxCode, true);
-        std::this_thread::sleep_for(50ms);
-        SendKey(dxCode, false);
+        SendKey(hotkey.dxCode, true);
+        if (hotkey.isPress) {
+            std::this_thread::sleep_for(50ms);
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(hotkey.holdMs));
+        }
+        SendKey(hotkey.dxCode, false);
         std::this_thread::sleep_for(50ms);
         for (auto it = mods.rbegin(); it != mods.rend(); ++it) {
             SendKey(*it, false);
@@ -440,7 +462,9 @@ namespace UI::HotkeyManager {
     static bool useRCtrl = false;
     static bool useRAlt = false;
     static bool useRShift = false;
-    // Common keys for dropdown
+    static bool isPress = true;
+    static uint32_t holdMs = 1000;
+    // Common keys for dropdown - ALL DX Scan Codes from UESP
     struct KeyOption {
         const char* name;
         uint32_t dxCode;
@@ -457,7 +481,7 @@ namespace UI::HotkeyManager {
         {"Delete", 211},  {"LMB", 256},     {"RMB", 257},    {"MMB", 258},  {"MB3", 259},   {"MB4", 260},  {"MB5", 261}, {"MB6", 262},  {"MB7", 263},  {"MWUp", 264},  {"MWDown", 265}};
     static const int keyOptionsCount = sizeof(keyOptions) / sizeof(KeyOption);
     void __stdcall Render() {
-        ImGuiMCP::Text("Configured Hotkeys:");
+        ImGuiMCP::Text("Hotkeys:");
         ImGuiMCP::SameLine();
         if (ImGuiMCP::Button("Add Hotkey")) {
             newHotkeyName[0] = '\0';
@@ -468,13 +492,20 @@ namespace UI::HotkeyManager {
             useRCtrl = false;
             useRAlt = false;
             useRShift = false;
+            isPress = true;
+            holdMs = 1000;
             AddHotkeyWindow->IsOpen = true;
         }
         ImGuiMCP::SameLine();
-        if (ImGuiMCP::Button("Reload Configuration")) {
+        if (ImGuiMCP::Button("Reload Config")) {
             Configuration::LoadConfiguration();
             logger::info("Configuration reloaded");
         }
+        ImGuiMCP::SameLine();
+        ImGuiMCP::Text("Search:");
+        ImGuiMCP::SameLine();
+        static char searchBuffer[256] = "";
+        ImGuiMCP::InputText("##Search", searchBuffer, sizeof(searchBuffer));
         ImGuiMCP::Separator();
         if (Configuration::Hotkeys.empty()) {
             ImGuiMCP::TextColored(ImGuiMCP::ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No hotkeys configured. Click 'Add Hotkey' to create one.");
@@ -485,8 +516,13 @@ namespace UI::HotkeyManager {
                 ImGuiMCP::TableSetupColumn("Key Combination", ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
                 ImGuiMCP::TableSetupColumn("Actions", ImGuiMCP::ImGuiTableColumnFlags_WidthFixed, 180.0f);
                 ImGuiMCP::TableHeadersRow();
+                std::string lowerSearch = searchBuffer;
+                std::transform(lowerSearch.begin(), lowerSearch.end(), lowerSearch.begin(), ::tolower);
                 for (size_t i = 0; i < Configuration::Hotkeys.size(); i++) {
                     const auto& hotkey = Configuration::Hotkeys[i];
+                    std::string lowerName = hotkey.name;
+                    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+                    if (!lowerSearch.empty() && lowerName.find(lowerSearch) == std::string::npos) continue;
                     ImGuiMCP::TableNextRow();
                     // Name column
                     ImGuiMCP::TableSetColumnIndex(0);
@@ -504,9 +540,9 @@ namespace UI::HotkeyManager {
                     ImGuiMCP::Text(keyCombo.c_str());
                     // Actions column
                     ImGuiMCP::TableSetColumnIndex(2);
-                    std::string pressButtonId = "Press##" + std::to_string(i);
+                    std::string actionButtonId = (hotkey.isPress ? "Press##" : "Hold##") + std::to_string(i);
                     std::string deleteButtonId = "Delete##" + std::to_string(i);
-                    if (ImGuiMCP::Button(pressButtonId.c_str())) {
+                    if (ImGuiMCP::Button(actionButtonId.c_str())) {
                         logger::info("Executing hotkey: {}", hotkey.name);
                         // Execute in a separate thread with menu close
                         std::thread([hotkey]() {
@@ -518,7 +554,7 @@ namespace UI::HotkeyManager {
                             KeyExecutor::SendKey(1, false);
                             std::this_thread::sleep_for(100ms);
                             // Execute the hotkey
-                            KeyExecutor::ExecuteKey(hotkey.dxCode, hotkey.useLCtrl, hotkey.useLAlt, hotkey.useLShift, hotkey.useRCtrl, hotkey.useRAlt, hotkey.useRShift);
+                            KeyExecutor::ExecuteKey(hotkey);
                         }).detach();
                     }
                     ImGuiMCP::SameLine();
@@ -538,7 +574,7 @@ namespace UI::HotkeyManager {
         ImGuiMCP::ImGuiViewportManager::GetCenter(center, viewport);
         ImGuiMCP::SetNextWindowPos(*center, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
         ImGuiMCP::ImVec2Manager::Destroy(center);
-        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{700, 450}, ImGuiMCP::ImGuiCond_Appearing);
+        ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{700, 500}, ImGuiMCP::ImGuiCond_Appearing);
         ImGuiMCP::Begin("Add Hotkey##ExecuteHotkeys", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
         ImGuiMCP::Text("Configure a new hotkey:");
         ImGuiMCP::Separator();
@@ -571,6 +607,22 @@ namespace UI::HotkeyManager {
         ImGuiMCP::SameLine();
         ImGuiMCP::Checkbox("RShift", &useRShift);
         ImGuiMCP::Spacing();
+        ImGuiMCP::Text("Action Type:");
+        if (ImGuiMCP::Checkbox("Press", &isPress)) {
+            if (isPress) {
+                // No action needed
+            }
+        }
+        ImGuiMCP::SameLine();
+        bool isHold = !isPress;
+        if (ImGuiMCP::Checkbox("Hold", &isHold)) {
+            isPress = !isHold;
+        }
+        if (isHold) {
+            ImGuiMCP::SameLine();
+            ImGuiMCP::InputScalar("ms", ImGuiMCP::ImGuiDataType_U32, &holdMs);
+        }
+        ImGuiMCP::Spacing();
         ImGuiMCP::Separator();
         ImGuiMCP::Spacing();
         bool canAdd = strlen(newHotkeyName) > 0;
@@ -578,7 +630,7 @@ namespace UI::HotkeyManager {
             ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_Alpha, 0.5f);
         }
         if (ImGuiMCP::Button("Add Hotkey") && canAdd) {
-            Configuration::Hotkey newHotkey(std::string(newHotkeyName), keyOptions[selectedKeyIndex].dxCode, useLCtrl, useLAlt, useLShift, useRCtrl, useRAlt, useRShift);
+            Configuration::Hotkey newHotkey(std::string(newHotkeyName), keyOptions[selectedKeyIndex].dxCode, useLCtrl, useLAlt, useLShift, useRCtrl, useRAlt, useRShift, isPress, holdMs);
             Configuration::AddHotkey(newHotkey);
             logger::info("Added new hotkey: {}", newHotkey.name);
             AddHotkeyWindow->IsOpen = false;
