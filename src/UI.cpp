@@ -480,6 +480,7 @@ namespace UI::HotkeyManager {
         ImGuiMCP::Text("Search:");
         ImGuiMCP::SameLine();
         static char searchBuffer[256] = "";
+        ImGuiMCP::SetNextItemWidth(-1.0f);
         ImGuiMCP::InputText("##Search", searchBuffer, sizeof(searchBuffer));
         ImGuiMCP::Separator();
         if (Configuration::Hotkeys.empty()) {
