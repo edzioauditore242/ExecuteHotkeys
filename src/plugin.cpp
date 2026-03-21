@@ -12,7 +12,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SetupLog();
     logger::info("Execute Hotkeys plugin loaded");
 
-    // FIXED: Load translations BEFORE registering the menu
     UI::LoadTranslations();
 
     UI::Register();

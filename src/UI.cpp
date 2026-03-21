@@ -9,10 +9,10 @@
 #include <unordered_map>
 
 // ============================================
-// Translation System (fixed - one shared map)
+// Translation System
 // ============================================
 namespace {
-    static std::unordered_map<std::string, std::string> translations;  // SINGLE shared map
+    static std::unordered_map<std::string, std::string> translations;
 }
 
 void UI::LoadTranslations() {
@@ -61,11 +61,11 @@ void UI::LoadTranslations() {
 const char* UI::T(const char* key) {
     auto it = translations.find(key);
     if (it != translations.end()) return it->second.c_str();
-    return key;  // default English
+    return key;
 }
 
 // ============================================
-// Configuration Implementation (100% your original)
+// Configuration Implementation
 // ============================================
 namespace Configuration {
     std::string GetConfigPath() { return "Data\\SKSE\\Plugins\\ExecuteHotkeys.ini"; }
@@ -370,7 +370,7 @@ namespace Configuration {
 }
 
 // ============================================
-// Key Executor Implementation (100% your original)
+// Key Executor Implementation
 // ============================================
 namespace KeyExecutor {
     void SendKey(uint32_t dxCode, bool down) {
