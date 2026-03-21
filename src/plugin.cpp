@@ -3,6 +3,7 @@
 void OnMessage(SKSE::MessagingInterface::Message* message) {
     if (message->type == SKSE::MessagingInterface::kDataLoaded) {
         Configuration::LoadConfiguration();
+        UI::LoadTranslations();
     }
 }
 

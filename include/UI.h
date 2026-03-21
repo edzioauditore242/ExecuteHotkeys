@@ -9,4 +9,7 @@ namespace UI {
         void __stdcall RenderAddHotkeyWindow();
         inline MENU_WINDOW AddHotkeyWindow;
     }
+
+    void LoadTranslations();
+    const char* T(const char* key);
 }

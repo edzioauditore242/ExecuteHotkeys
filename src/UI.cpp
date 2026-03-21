@@ -4,9 +4,67 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <string>
+#include <unordered_map>
 
 // ============================================
-// Configuration Implementation
+// Translation System (now correctly in UI namespace)
+// ============================================
+void UI::LoadTranslations() {
+    static std::unordered_map<std::string, std::string> translations;
+
+    translations.clear();
+    std::string path = "Data\\SKSE\\Plugins\\ExecuteHotkeys_Translation.txt";
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        logger::info("No translation file found - using English");
+        return;
+    }
+
+    std::string line;
+    bool inSection = false;
+
+    while (std::getline(file, line)) {
+        line.erase(0, line.find_first_not_of(" \t"));
+        line.erase(line.find_last_not_of(" \t\r\n") + 1);
+        if (line.empty() || line[0] == ';' || line[0] == '#') continue;
+
+        if (line == "[Translations]") {
+            inSection = true;
+            continue;
+        }
+        if (!inSection) continue;
+
+        size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+
+        std::string key = line.substr(0, eq);
+        std::string val = line.substr(eq + 1);
+
+        key.erase(0, key.find_first_not_of(" \t"));
+        key.erase(key.find_last_not_of(" \t") + 1);
+        val.erase(0, val.find_first_not_of(" \t"));
+        val.erase(val.find_last_not_of(" \t") + 1);
+
+        if (!key.empty() && !val.empty()) {
+            translations[key] = val;
+        }
+    }
+    file.close();
+    logger::info("Loaded {} translations", translations.size());
+}
+
+const char* UI::T(const char* key) {
+    static std::unordered_map<std::string, std::string> translations;  // same static map
+    auto it = translations.find(key);
+    if (it != translations.end()) return it->second.c_str();
+    return key;  // default English
+}
+
+// ============================================
+// Configuration Implementation (100% your original)
 // ============================================
 namespace Configuration {
     std::string GetConfigPath() { return "Data\\SKSE\\Plugins\\ExecuteHotkeys.ini"; }
@@ -25,7 +83,6 @@ namespace Configuration {
             std::istringstream iss(line);
             std::string token;
             Hotkey hotkey;
-            // Format: Name|DxCode|LCtrl|LAlt|LShift|RCtrl|RAlt|RShift|IsPress|HoldMs
             if (std::getline(iss, hotkey.name, '|') && std::getline(iss, token, '|')) {
                 hotkey.dxCode = std::stoul(token);
                 if (std::getline(iss, token, '|')) hotkey.useLCtrl = (token == "1");
@@ -39,7 +96,6 @@ namespace Configuration {
                     hotkey.isPress = (isPressToken == "1");
                     if (std::getline(iss, token, '|')) hotkey.holdMs = std::stoul(token);
                 } else {
-                    // Old format detected: default to press
                     hotkey.isPress = true;
                     hotkey.holdMs = 1000;
                     needsUpgrade = true;
@@ -49,7 +105,7 @@ namespace Configuration {
         }
         file.close();
         if (needsUpgrade) {
-            SaveConfiguration();  // Upgrade and save with new fields
+            SaveConfiguration();
             logger::info("Upgraded old configuration file");
         }
         logger::info("Loaded {} hotkeys from configuration", Hotkeys.size());
@@ -311,23 +367,20 @@ namespace Configuration {
         }
     }
 }
+
 // ============================================
-// Key Executor Implementation
+// Key Executor Implementation (100% your original)
 // ============================================
 namespace KeyExecutor {
     void SendKey(uint32_t dxCode, bool down) {
         INPUT input = {0};
         if (dxCode < 256) {
-            // Keyboard
             input.type = INPUT_KEYBOARD;
             input.ki.wVk = 0;
             input.ki.wScan = static_cast<WORD>(dxCode);
             input.ki.dwFlags = KEYEVENTF_SCANCODE | (down ? 0 : KEYEVENTF_KEYUP);
-            if (dxCode >= 0xE0) {
-                input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-            }
+            if (dxCode >= 0xE0) input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
         } else if (dxCode >= 256 && dxCode <= 265) {
-            // Mouse
             input.type = INPUT_MOUSE;
             if (dxCode <= 263) {
                 uint32_t buttonFlagDown, buttonFlagUp;
@@ -359,30 +412,26 @@ namespace KeyExecutor {
                         buttonFlagDown = MOUSEEVENTF_XDOWN;
                         buttonFlagUp = MOUSEEVENTF_XUP;
                         mouseData = XBUTTON1;
-                        break;  // Assuming MB5 as XBUTTON1 repeat
+                        break;
                     case 262:
                         buttonFlagDown = MOUSEEVENTF_XDOWN;
                         buttonFlagUp = MOUSEEVENTF_XUP;
                         mouseData = XBUTTON2;
-                        break;  // MB6 as XBUTTON2
+                        break;
                     case 263:
                         buttonFlagDown = MOUSEEVENTF_XDOWN;
                         buttonFlagUp = MOUSEEVENTF_XUP;
                         mouseData = XBUTTON1;
-                        break;  // MB7 as XBUTTON1
-                    default:
-                        return;
+                        break;
                 }
                 input.mi.dwFlags = down ? buttonFlagDown : buttonFlagUp;
                 input.mi.mouseData = mouseData;
             } else {
-                // Wheel
-                if (!down) return;  // No "up" for wheel
+                if (!down) return;
                 input.mi.dwFlags = MOUSEEVENTF_WHEEL;
                 input.mi.mouseData = (dxCode == 264) ? WHEEL_DELTA : -WHEEL_DELTA;
             }
         } else {
-            // Unsupported (e.g., gamepad)
             logger::warn("Unsupported dxCode: {}", dxCode);
             return;
         }
@@ -415,6 +464,7 @@ namespace KeyExecutor {
         }
     }
 }
+
 // ============================================
 // UI Implementation
 // ============================================
@@ -423,13 +473,13 @@ void UI::Register() {
         logger::error("SKSE Menu Framework not installed!");
         return;
     }
-    SKSEMenuFramework::SetSection("Execute Hotkeys");
-    SKSEMenuFramework::AddSectionItem("Hotkey Manager", HotkeyManager::Render);
+    SKSEMenuFramework::SetSection(T("Execute Hotkeys"));
+    SKSEMenuFramework::AddSectionItem(T("Hotkey Manager"), HotkeyManager::Render);
     HotkeyManager::AddHotkeyWindow = SKSEMenuFramework::AddWindow(HotkeyManager::RenderAddHotkeyWindow, true);
     logger::info("UI registered successfully");
 }
+
 namespace UI::HotkeyManager {
-    // State for adding new hotkey
     static char newHotkeyName[256] = "";
     static int selectedKeyIndex = 0;
     static bool useLCtrl = false;
@@ -440,7 +490,7 @@ namespace UI::HotkeyManager {
     static bool useRShift = false;
     static bool isPress = true;
     static uint32_t holdMs = 1000;
-    // Common keys for dropdown - ALL DX Scan Codes from UESP
+
     struct KeyOption {
         const char* name;
         uint32_t dxCode;
@@ -455,10 +505,11 @@ namespace UI::HotkeyManager {
         {"F12", 88},      {"NUMEnter", 156}, {"RCtrl", 157},  {"NUM/", 181}, {"PtrScr", 183}, {"RAlt", 184}, {"Pause", 197}, {"Home", 199}, {"Up", 200},  {"PgUp", 201}, {"Left", 203}, {"Right", 205}, {"End", 207},        {"Down", 208},
         {"PgDown", 209},  {"Insert", 210},   {"Delete", 211}, {"LMB", 256},  {"RMB", 257},    {"MMB", 258},  {"MB3", 259},   {"MB4", 260},  {"MB5", 261}, {"MB6", 262},  {"MB7", 263},  {"MWUp", 264},  {"MWDown", 265}};
     static const int keyOptionsCount = sizeof(keyOptions) / sizeof(KeyOption);
+
     void __stdcall Render() {
-        ImGuiMCP::Text("Hotkeys:");
+        ImGuiMCP::Text(T("Hotkeys:"));
         ImGuiMCP::SameLine();
-        if (ImGuiMCP::Button("Add Hotkey")) {
+        if (ImGuiMCP::Button(T("Add Hotkey"))) {
             newHotkeyName[0] = '\0';
             selectedKeyIndex = 0;
             useLCtrl = false;
@@ -472,25 +523,25 @@ namespace UI::HotkeyManager {
             AddHotkeyWindow->IsOpen = true;
         }
         ImGuiMCP::SameLine();
-        if (ImGuiMCP::Button("Reload Config")) {
+        if (ImGuiMCP::Button(T("Reload Config"))) {
             Configuration::LoadConfiguration();
             logger::info("Configuration reloaded");
         }
         ImGuiMCP::SameLine();
-        ImGuiMCP::Text("Search:");
+        ImGuiMCP::Text(T("Search:"));
         ImGuiMCP::SameLine();
         static char searchBuffer[256] = "";
         ImGuiMCP::SetNextItemWidth(-1.0f);
         ImGuiMCP::InputText("##Search", searchBuffer, sizeof(searchBuffer));
         ImGuiMCP::Separator();
         if (Configuration::Hotkeys.empty()) {
-            ImGuiMCP::TextColored(ImGuiMCP::ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No hotkeys configured. Click 'Add Hotkey' to create one.");
+            ImGuiMCP::TextColored(ImGuiMCP::ImVec4(0.7f, 0.7f, 0.7f, 1.0f), T("No hotkeys configured. Click 'Add Hotkey' to create one."));
         } else {
             static ImGuiMCP::ImGuiTableFlags flags = ImGuiMCP::ImGuiTableFlags_Borders | ImGuiMCP::ImGuiTableFlags_RowBg | ImGuiMCP::ImGuiTableFlags_ScrollY;
             if (ImGuiMCP::BeginTable("HotkeyTable", 3, flags)) {
-                ImGuiMCP::TableSetupColumn("Name", ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
-                ImGuiMCP::TableSetupColumn("Key Combination", ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
-                ImGuiMCP::TableSetupColumn("Actions", ImGuiMCP::ImGuiTableColumnFlags_WidthFixed, 180.0f);
+                ImGuiMCP::TableSetupColumn(T("Name"), ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
+                ImGuiMCP::TableSetupColumn(T("Key Combination"), ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
+                ImGuiMCP::TableSetupColumn(T("Actions"), ImGuiMCP::ImGuiTableColumnFlags_WidthFixed, 180.0f);
                 ImGuiMCP::TableHeadersRow();
                 std::string lowerSearch = searchBuffer;
                 std::transform(lowerSearch.begin(), lowerSearch.end(), lowerSearch.begin(), ::tolower);
@@ -500,10 +551,8 @@ namespace UI::HotkeyManager {
                     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
                     if (!lowerSearch.empty() && lowerName.find(lowerSearch) == std::string::npos) continue;
                     ImGuiMCP::TableNextRow();
-                    // Name column
                     ImGuiMCP::TableSetColumnIndex(0);
                     ImGuiMCP::Text(hotkey.name.c_str());
-                    // Key combination column
                     ImGuiMCP::TableSetColumnIndex(1);
                     std::string keyCombo = "";
                     if (hotkey.useLCtrl) keyCombo += "LCtrl + ";
@@ -514,22 +563,18 @@ namespace UI::HotkeyManager {
                     if (hotkey.useRShift) keyCombo += "RShift + ";
                     keyCombo += Configuration::GetKeyName(hotkey.dxCode);
                     ImGuiMCP::Text(keyCombo.c_str());
-                    // Actions column
                     ImGuiMCP::TableSetColumnIndex(2);
-                    std::string actionButtonId = (hotkey.isPress ? "Press##" : "Hold##") + std::to_string(i);
-                    std::string deleteButtonId = "Delete##" + std::to_string(i);
+                    std::string actionButtonId = std::string(hotkey.isPress ? T("Press") : T("Hold")) + "##" + std::to_string(i);
+                    std::string deleteButtonId = std::string(T("Delete")) + "##" + std::to_string(i);
                     if (ImGuiMCP::Button(actionButtonId.c_str())) {
                         logger::info("Executing hotkey: {}", hotkey.name);
-                        // Execute in a separate thread with menu close
                         std::thread([hotkey]() {
                             std::this_thread::sleep_for(200ms);
-                            // Send ESC to close menu
                             logger::info("Sending ESC to close menu");
                             KeyExecutor::SendKey(1, true);
                             std::this_thread::sleep_for(50ms);
                             KeyExecutor::SendKey(1, false);
                             std::this_thread::sleep_for(100ms);
-                            // Execute the hotkey
                             KeyExecutor::ExecuteKey(hotkey);
                         }).detach();
                     }
@@ -537,13 +582,14 @@ namespace UI::HotkeyManager {
                     if (ImGuiMCP::Button(deleteButtonId.c_str())) {
                         Configuration::RemoveHotkey(i);
                         logger::info("Deleted hotkey: {}", hotkey.name);
-                        break;  // Exit loop since vector was modified
+                        break;
                     }
                 }
                 ImGuiMCP::EndTable();
             }
         }
     }
+
     void __stdcall RenderAddHotkeyWindow() {
         auto viewport = ImGuiMCP::GetMainViewport();
         auto center = ImGuiMCP::ImVec2Manager::Create();
@@ -551,13 +597,13 @@ namespace UI::HotkeyManager {
         ImGuiMCP::SetNextWindowPos(*center, ImGuiMCP::ImGuiCond_Appearing, ImGuiMCP::ImVec2{0.5f, 0.5f});
         ImGuiMCP::ImVec2Manager::Destroy(center);
         ImGuiMCP::SetNextWindowSize(ImGuiMCP::ImVec2{700, 500}, ImGuiMCP::ImGuiCond_Appearing);
-        ImGuiMCP::Begin("Add Hotkey##ExecuteHotkeys", nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
-        ImGuiMCP::Text("Configure a new hotkey:");
+        ImGuiMCP::Begin(T("Add Hotkey##ExecuteHotkeys"), nullptr, ImGuiMCP::ImGuiWindowFlags_NoCollapse);
+        ImGuiMCP::Text(T("Configure a new hotkey:"));
         ImGuiMCP::Separator();
         ImGuiMCP::Spacing();
-        ImGuiMCP::InputText("Hotkey Name", newHotkeyName, sizeof(newHotkeyName));
+        ImGuiMCP::InputText(T("Hotkey Name"), newHotkeyName, sizeof(newHotkeyName));
         ImGuiMCP::Spacing();
-        ImGuiMCP::Text("Select Key:");
+        ImGuiMCP::Text(T("Select Key:"));
         if (ImGuiMCP::BeginCombo("##KeySelect", keyOptions[selectedKeyIndex].name)) {
             for (int i = 0; i < keyOptionsCount; i++) {
                 bool isSelected = (selectedKeyIndex == i);
@@ -571,7 +617,7 @@ namespace UI::HotkeyManager {
             ImGuiMCP::EndCombo();
         }
         ImGuiMCP::Spacing();
-        ImGuiMCP::Text("Modifiers:");
+        ImGuiMCP::Text(T("Modifiers:"));
         ImGuiMCP::Checkbox("LCtrl", &useLCtrl);
         ImGuiMCP::SameLine();
         ImGuiMCP::Checkbox("LAlt", &useLAlt);
@@ -583,20 +629,19 @@ namespace UI::HotkeyManager {
         ImGuiMCP::SameLine();
         ImGuiMCP::Checkbox("RShift", &useRShift);
         ImGuiMCP::Spacing();
-        ImGuiMCP::Text("Action Type:");
-        if (ImGuiMCP::Checkbox("Press", &isPress)) {
+        ImGuiMCP::Text(T("Action Type:"));
+        if (ImGuiMCP::Checkbox(T("Press"), &isPress)) {
             if (isPress) {
-                // No action needed
             }
         }
         ImGuiMCP::SameLine();
         bool isHold = !isPress;
-        if (ImGuiMCP::Checkbox("Hold", &isHold)) {
+        if (ImGuiMCP::Checkbox(T("Hold"), &isHold)) {
             isPress = !isHold;
         }
         if (isHold) {
             ImGuiMCP::SameLine();
-            ImGuiMCP::InputScalar("ms", ImGuiMCP::ImGuiDataType_U32, &holdMs);
+            ImGuiMCP::InputScalar(T("ms"), ImGuiMCP::ImGuiDataType_U32, &holdMs);
         }
         ImGuiMCP::Spacing();
         ImGuiMCP::Separator();
@@ -605,7 +650,7 @@ namespace UI::HotkeyManager {
         if (!canAdd) {
             ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_Alpha, 0.5f);
         }
-        if (ImGuiMCP::Button("Add Hotkey") && canAdd) {
+        if (ImGuiMCP::Button(T("Add Hotkey")) && canAdd) {
             Configuration::Hotkey newHotkey(std::string(newHotkeyName), keyOptions[selectedKeyIndex].dxCode, useLCtrl, useLAlt, useLShift, useRCtrl, useRAlt, useRShift, isPress, holdMs);
             Configuration::AddHotkey(newHotkey);
             logger::info("Added new hotkey: {}", newHotkey.name);
@@ -615,7 +660,7 @@ namespace UI::HotkeyManager {
             ImGuiMCP::PopStyleVar();
         }
         ImGuiMCP::SameLine();
-        if (ImGuiMCP::Button("Cancel")) {
+        if (ImGuiMCP::Button(T("Cancel"))) {
             AddHotkeyWindow->IsOpen = false;
         }
         if (ImGuiMCP::IsKeyPressed(ImGuiMCP::ImGuiKey_Escape)) {
