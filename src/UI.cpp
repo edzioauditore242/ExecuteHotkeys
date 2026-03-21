@@ -9,11 +9,13 @@
 #include <unordered_map>
 
 // ============================================
-// Translation System (now correctly in UI namespace)
+// Translation System (fixed - one shared map)
 // ============================================
-void UI::LoadTranslations() {
-    static std::unordered_map<std::string, std::string> translations;
+namespace {
+    static std::unordered_map<std::string, std::string> translations;  // SINGLE shared map
+}
 
+void UI::LoadTranslations() {
     translations.clear();
     std::string path = "Data\\SKSE\\Plugins\\ExecuteHotkeys_Translation.txt";
 
@@ -57,7 +59,6 @@ void UI::LoadTranslations() {
 }
 
 const char* UI::T(const char* key) {
-    static std::unordered_map<std::string, std::string> translations;  // same static map
     auto it = translations.find(key);
     if (it != translations.end()) return it->second.c_str();
     return key;  // default English

@@ -3,7 +3,6 @@
 void OnMessage(SKSE::MessagingInterface::Message* message) {
     if (message->type == SKSE::MessagingInterface::kDataLoaded) {
         Configuration::LoadConfiguration();
-        UI::LoadTranslations();
     }
 }
 
@@ -12,6 +11,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
     SetupLog();
     logger::info("Execute Hotkeys plugin loaded");
+
+    // FIXED: Load translations BEFORE registering the menu
+    UI::LoadTranslations();
+
     UI::Register();
     return true;
 }
